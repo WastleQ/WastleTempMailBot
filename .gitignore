@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+database.db
+.env
+.pytest_cache/
+.DS_Store
+Agent.md
+AGENTS.md

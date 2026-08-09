@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WastleTempMail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 500: '#6366f1', 600: '#4f46e5' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-4">
+    <div class="w-full max-w-md mx-auto flex flex-col gap-6">
+        <!-- Header -->
+        <header class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🔐</span>
+                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">WastleTempMail</h1>
+            </div>
+            <span id="user-status" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full">Connecting...</span>
+        </header>
+
+        <!-- Mailbox Card -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+            <div class="flex justify-between items-center text-sm text-slate-400">
+                <span>Active Mailbox</span>
+                <span id="timer" class="text-indigo-400 font-mono font-semibold">15:00</span>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-2">
+                <span id="email-display" class="font-mono text-sm text-indigo-200 truncate select-all">Loading...</span>
+                <button onclick="copyEmail()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-95 shrink-0">Copy</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-1">
+                <button onclick="createMail()" class="bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 shadow-lg shadow-indigo-600/20">New Mail</button>
+                <button onclick="deleteMail()" class="bg-red-900/40 hover:bg-red-900/60 text-red-300 py-2.5 rounded-xl text-sm font-semibold transition active:scale-95 border border-red-800/50">Delete</button>
+            </div>
+        </section>
+
+        <!-- Inbox Section -->
+        <section class="flex flex-col gap-3">
+            <div class="flex justify-between items-center">
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Inbox</h2>
+                <span id="msg-count" class="text-xs text-slate-500">0 messages</span>
+            </div>
+            <div id="inbox-list" class="flex flex-col gap-3">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-slate-500 text-sm">
+                    Inbox is empty. Messages arrive automatically in real-time.
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="mt-auto py-6 text-center text-xs text-slate-600">
+        Powered by Wastle Ecosystem
+    </footer>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let userId = tg.initDataUnsafe?.user?.id || urlParams.get('user_id');
+        if (userId) {
+            localStorage.setItem('wastle_user_id', userId);
+        } else {
+            userId = localStorage.getItem('wastle_user_id');
+            if (!userId) {
+                userId = Math.floor(Math.random() * 900000000) + 100000000;
+                localStorage.setItem('wastle_user_id', userId);
+            }
+        }
+
+        let currentEmail = "";
+        let mailCreatedAt = null;
+        let timerInterval = null;
+
+        document.getElementById('user-status').innerText = `ID: ${userId}`;
+
+        function startTimer(createdAtStr) {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            const parseDate = (dateStr) => {
+                if (!dateStr) return Date.now();
+                let s = dateStr.trim();
+                if (!s.endsWith('Z') && !s.includes('+') && !s.includes('-', 10)) {
+                    s += 'Z';
+                }
+                return new Date(s).getTime();
+            };
+
+            const createdTime = parseDate(createdAtStr);
+            const durationMs = 15 * 60 * 1000; // 15 minutes
+
+            function updateCountdown() {
+                const now = Date.now();
+                const elapsed = now - createdTime;
+                const remaining = durationMs - elapsed;
+
+                if (remaining <= 0) {
+                    document.getElementById('timer').innerText = "Expired";
+                    clearInterval(timerInterval);
+                    return;
+                }
+
+                const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+                document.getElementById('timer').innerText = 
+                    `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            updateCountdown();
+            timerInterval = setInterval(updateCountdown, 1000);
+        }
+
+        async function fetchUserData() {
+            try {
+                const res = await fetch(`/api/user/${userId}`);
+                const data = await res.json();
+                if (data.email) {
+                    currentEmail = data.email;
+                    document.getElementById('email-display').innerText = currentEmail;
+                    mailCreatedAt = data.createdAt;
+                    startTimer(mailCreatedAt);
+                    loadMessages();
+                } else {
+                    document.getElementById('email-display').innerText = "No active mailbox";
+                    document.getElementById('timer').innerText = "15:00";
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function createMail() {
+            document.getElementById('email-display').innerText = "Generating...";
+            try {
+                const res = await fetch(`/api/create/${userId}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.email) {
+                    currentEmail = data.email;
+                    document.getElementById('email-display').innerText = currentEmail;
+                    mailCreatedAt = new Date().toISOString();
+                    startTimer(mailCreatedAt);
+                    loadMessages();
+                    tg.HapticFeedback?.notificationOccurred('success');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function deleteMail() {
+            try {
+                await fetch(`/api/delete/${userId}`, { method: 'POST' });
+                currentEmail = "";
+                document.getElementById('email-display').innerText = "No active mailbox";
+                document.getElementById('timer').innerText = "15:00";
+                if (timerInterval) clearInterval(timerInterval);
+                document.getElementById('inbox-list').innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-slate-500 text-sm">Mailbox deleted.</div>`;
+                document.getElementById('msg-count').innerText = "0 messages";
+                tg.HapticFeedback?.notificationOccurred('warning');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadMessages() {
+            if (!currentEmail) return;
+            try {
+                const res = await fetch(`/api/messages/${userId}`);
+                const data = await res.json();
+                const list = document.getElementById('inbox-list');
+                document.getElementById('msg-count').innerText = `${data.length} messages`;
+
+                if (!data.length) {
+                    return;
+                }
+
+                list.innerHTML = data.map(msg => `
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+                        <div class="flex justify-between items-start text-xs text-slate-400">
+                            <span class="truncate max-w-[200px]">From: ${msg.from?.address || 'Unknown'}</span>
+                            <span>${new Date(msg.createdAt).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="font-medium text-slate-200 text-sm">${msg.subject || 'No Subject'}</div>
+                        <div class="text-xs text-slate-400 bg-slate-950 p-2.5 rounded-lg font-mono whitespace-pre-wrap">${msg.body || msg.intro || ''}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function copyEmail() {
+            if (!currentEmail) return;
+            navigator.clipboard.writeText(currentEmail);
+            tg.HapticFeedback?.notificationOccurred('success');
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = originalText, 2000);
+        }
+
+        fetchUserData();
+        
+        if (userId) {
+            const eventSource = new EventSource(`/api/stream/${userId}`);
+            let initialMessageCount = null;
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (initialMessageCount === null) {
+                        initialMessageCount = data.count;
+                    } else if (data.count > initialMessageCount) {
+                        initialMessageCount = data.count;
+                        loadMessages();
+                        tg.HapticFeedback?.notificationOccurred('success');
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+        }
+    </script>
+</body>
+</html>
