@@ -1,9 +1,12 @@
 
+"""Asynchronous SQLite database management using aiosqlite."""
+
 import aiosqlite
 from config import DATABASE_PATH
 
 
 async def init_db() -> None:
+    """Initialize database schema and perform dynamic migrations if needed."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -16,6 +19,7 @@ async def init_db() -> None:
                 mail_created_at TIMESTAMP
             )
         """)
+        # Dynamic schema migration for mail_created_at timestamp
         async with db.execute("PRAGMA table_info(users)") as cursor:
             columns = [row[1] async for row in cursor]
             if "mail_created_at" not in columns:
@@ -23,6 +27,7 @@ async def init_db() -> None:
         await db.commit()
 
 async def get_user(user_id: int) -> tuple[str, str | None, str | None, str | None, str | None] | None:
+    """Retrieve user language, active mailbox details, and creation timestamp."""
     async with aiosqlite.connect(DATABASE_PATH) as db, db.execute(
         "SELECT language, email, mail_id, mail_token, mail_created_at FROM users WHERE user_id = ?",
         (user_id,)
@@ -30,12 +35,14 @@ async def get_user(user_id: int) -> tuple[str, str | None, str | None, str | Non
         return await cursor.fetchone()
 
 async def get_all_active_users() -> list[tuple[int, str, str]]:
+    """Retrieve all users with an active mailbox and API token for background worker."""
     async with aiosqlite.connect(DATABASE_PATH) as db, db.execute(
         "SELECT user_id, language, mail_token FROM users WHERE email IS NOT NULL AND mail_token IS NOT NULL"
     ) as cursor:
         return await cursor.fetchall()
 
 async def set_user_language(user_id: int, language: str) -> None:
+    """Save or update user language preference (ru/en)."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
             """
@@ -47,6 +54,7 @@ async def set_user_language(user_id: int, language: str) -> None:
         await db.commit()
 
 async def set_user_mailbox(user_id: int, email: str, mail_id: str, mail_token: str) -> None:
+    """Assign a new temporary mailbox to a user with timestamp."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
             """
@@ -63,6 +71,7 @@ async def set_user_mailbox(user_id: int, email: str, mail_id: str, mail_token: s
         await db.commit()
 
 async def clear_user_mailbox(user_id: int) -> None:
+    """Clear active mailbox data for a user."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
             """
