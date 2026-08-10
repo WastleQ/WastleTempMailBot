@@ -73,17 +73,23 @@ async def api_stream_messages(request: web.Request) -> web.StreamResponse:
     await response.prepare(request)
     
     last_count = -1
+    last_email = "__INIT__"
     try:
         while True:
             user_data = await get_user(user_id)
-            if user_data and user_data[3]:
-                token = user_data[3]
-                messages = await get_messages(token)
-                if len(messages) != last_count:
-                    last_count = len(messages)
-                    data = json.dumps({"count": last_count})
-                    await response.write(f"data: {data}\n\n".encode())
-            await asyncio.sleep(5)
+            current_email = user_data[1] if user_data else None
+            token = user_data[3] if user_data else None
+            
+            messages = await get_messages(token) if token else []
+            count = len(messages)
+            
+            if count != last_count or current_email != last_email:
+                last_count = count
+                last_email = current_email
+                data = json.dumps({"count": last_count, "email": current_email})
+                await response.write(f"data: {data}\n\n".encode())
+                
+            await asyncio.sleep(3)
     except asyncio.CancelledError:
         pass
     except Exception as e:  # noqa: BLE001

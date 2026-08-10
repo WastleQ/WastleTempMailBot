@@ -1,5 +1,11 @@
 # Development Log - WastleTempMailBot
 
+## [1.6.0] - 2026-08-06 (Live Bidirectional Sync)
+* Implemented live bidirectional mailbox state sync in SSE stream (`/api/stream/{user_id}`).
+* TMA frontend now auto-detects mailbox creation or deletion performed in Telegram Chat and updates UI instantly without page reload.
+* Added `tg.ready()` in `webapp/index.html` to guarantee Telegram WebApp SDK initialization.
+* Validated codebase and unit tests with Ruff and Pytest.
+
 ## [1.5.1] - 2026-08-06 (Timer & Strict Sync Fixes)
 * Fixed UTC date parsing in `webapp/index.html` so the 15-minute countdown timer displays correctly instead of immediately expiring.
 * Enforced strict priority on Telegram `user.id` (`tg.initDataUnsafe.user.id` and URL query params) in TMA to ensure 100% account synchronization between chat bot and Mini App.

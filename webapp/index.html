@@ -66,6 +66,7 @@
 
     <script>
         const tg = window.Telegram.WebApp;
+        tg.ready();
         tg.expand();
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -219,6 +220,14 @@
             eventSource.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
+                    
+                    // Live bidirectional sync: If active mailbox changed in Chat, update TMA
+                    if (data.email !== undefined && data.email !== currentEmail) {
+                        currentEmail = data.email || "";
+                        fetchUserData();
+                        return;
+                    }
+                    
                     if (initialMessageCount === null) {
                         initialMessageCount = data.count;
                     } else if (data.count > initialMessageCount) {
