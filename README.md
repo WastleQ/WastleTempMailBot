@@ -1,5 +1,9 @@
 # 🔐 WastleTempMailBot
 
+🇺🇸 **English Documentation** | [🇷🇺 Русская документация](./README_ru.md)
+
+---
+
 **WastleTempMailBot** is an enterprise-grade, high-performance Telegram Bot and Telegram Mini App (TMA) built as a core service of the **Wastle Ecosystem**. It provides secure, anonymous, temporary email addresses with real-time push notifications and live webmail synchronization.
 
 ---
